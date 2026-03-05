@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Screener</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <!-- Header / Search -->
+    <header class="top-bar">
+        <form id="search-form" class="search-form" autocomplete="off">
+            <input type="text" id="ticker-input" placeholder="Enter ticker (e.g. AAPL)" spellcheck="false">
+            <button type="submit">Search</button>
+        </form>
+        <div class="brand">STOCK SCREENER</div>
+    </header>
+
+    <!-- Welcome screen (shown before ticker entry) -->
+    <div id="welcome" class="welcome">
+        <div class="welcome-inner">
+            <h1>Stock Screener</h1>
+            <p>Enter a ticker symbol above to view real-time quotes, charts, financials, and SEC filings.</p>
+        </div>
+    </div>
+
+    <!-- Loading overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p id="loading-text">Loading data...</p>
+    </div>
+
+    <!-- Dashboard (hidden until ticker loaded) -->
+    <main id="dashboard" class="dashboard hidden">
+        <!-- Stock Header -->
+        <section class="stock-header">
+            <div class="stock-identity">
+                <span class="stock-ticker" id="header-ticker"></span>
+                <span class="stock-name" id="header-name"></span>
+            </div>
+            <div class="stock-price-block">
+                <span class="stock-price" id="header-price"></span>
+                <span class="stock-change" id="header-change"></span>
+            </div>
+            <div class="stock-meta" id="header-meta"></div>
+        </section>
+
+        <!-- Chart Section -->
+        <section class="chart-section">
+            <div class="period-buttons" id="period-buttons">
+                <button data-period="1d">1D</button>
+                <button data-period="5d">5D</button>
+                <button data-period="1mo">1M</button>
+                <button data-period="3mo">3M</button>
+                <button data-period="6mo">6M</button>
+                <button data-period="1y" class="active">1Y</button>
+                <button data-period="2y">2Y</button>
+                <button data-period="5y">5Y</button>
+                <button data-period="10y">10Y</button>
+                <button data-period="ytd">YTD</button>
+                <button data-period="max">MAX</button>
+            </div>
+            <div id="chart-container" class="chart-container"></div>
+        </section>
+
+        <!-- Metrics Grid -->
+        <section class="metrics-grid">
+            <div class="panel" id="panel-key-metrics">
+                <h3>Key Metrics</h3>
+                <div class="metric-list" id="key-metrics"></div>
+            </div>
+            <div class="panel" id="panel-valuation">
+                <h3>Valuation</h3>
+                <div class="metric-list" id="valuation-metrics"></div>
+            </div>
+            <div class="panel" id="panel-analyst-targets">
+                <h3>Analyst Targets</h3>
+                <div id="analyst-targets"></div>
+            </div>
+            <div class="panel" id="panel-profitability">
+                <h3>Profitability</h3>
+                <div class="metric-list" id="profitability-metrics"></div>
+            </div>
+            <div class="panel" id="panel-balance">
+                <h3>Balance Sheet</h3>
+                <div class="metric-list" id="balance-metrics"></div>
+            </div>
+            <div class="panel" id="panel-recommendations">
+                <h3>Analyst Recommendations</h3>
+                <div id="recommendations"></div>
+            </div>
+        </section>
+
+        <!-- Financial Statements -->
+        <section class="financials-section">
+            <div class="financials-header">
+                <h3>Financial Statements</h3>
+                <div class="financials-tabs">
+                    <div class="stmt-tabs">
+                        <button class="active" data-type="income">Income</button>
+                        <button data-type="balance_sheet">Balance Sheet</button>
+                        <button data-type="cash_flow">Cash Flow</button>
+                    </div>
+                    <div class="freq-tabs">
+                        <button class="active" data-freq="annual">Annual</button>
+                        <button data-freq="quarterly">Quarterly</button>
+                    </div>
+                </div>
+            </div>
+            <div class="financials-table-wrap">
+                <table id="financials-table" class="financials-table">
+                    <thead id="financials-thead"></thead>
+                    <tbody id="financials-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- News & Upgrades -->
+        <section class="bottom-grid">
+            <div class="panel" id="panel-news">
+                <h3>Recent News</h3>
+                <div id="news-list" class="news-list"></div>
+            </div>
+            <div class="panel" id="panel-upgrades">
+                <h3>Upgrades / Downgrades</h3>
+                <div id="upgrades-list" class="upgrades-list"></div>
+            </div>
+        </section>
+
+        <!-- SEC Filings -->
+        <section class="filings-section">
+            <div class="panel">
+                <h3>SEC Filings (Last 5 Years)</h3>
+                <div id="filings-list" class="filings-list"></div>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/chart.js"></script>
+    <script src="/static/js/metrics.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

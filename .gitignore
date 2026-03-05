@@ -22,3 +22,6 @@ build/
 
 # Downloaded filings
 filings/
+
+# Cached stock data
+data/

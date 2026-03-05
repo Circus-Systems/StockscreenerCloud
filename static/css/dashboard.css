@@ -1,0 +1,607 @@
+/* === Variables === */
+:root {
+    --bg-primary: #0a0a0f;
+    --bg-panel: #12121a;
+    --bg-panel-hover: #181825;
+    --border: #1e1e2e;
+    --text-primary: #e0e0e0;
+    --text-secondary: #888;
+    --text-muted: #555;
+    --gain: #00c853;
+    --loss: #ff1744;
+    --accent: #2196f3;
+    --accent-dim: #1565c0;
+    --candle-up: #26a69a;
+    --candle-down: #ef5350;
+    --strong-buy: #00c853;
+    --buy: #4caf50;
+    --hold: #ff9800;
+    --sell: #ff5722;
+    --strong-sell: #d32f2f;
+    --radius: 8px;
+    --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Menlo, monospace;
+    --font-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* === Reset === */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: var(--font-system);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+    min-height: 100vh;
+}
+
+.hidden { display: none !important; }
+
+/* === Top Bar === */
+.top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.search-form {
+    display: flex;
+    gap: 8px;
+}
+
+.search-form input {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 16px;
+    padding: 8px 16px;
+    width: 260px;
+    outline: none;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.search-form input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+
+.search-form button {
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 8px 20px;
+    transition: background 0.2s;
+}
+
+.search-form button:hover { background: var(--accent-dim); }
+
+.brand {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 3px;
+    font-weight: 600;
+}
+
+/* === Welcome Screen === */
+.welcome {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 56px);
+}
+
+.welcome-inner {
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.welcome-inner h1 {
+    font-size: 48px;
+    font-weight: 200;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    letter-spacing: -1px;
+}
+
+.welcome-inner p { font-size: 16px; }
+
+/* === Loading Overlay === */
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 10, 15, 0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* === Dashboard === */
+.dashboard {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 24px 48px;
+}
+
+/* === Stock Header === */
+.stock-header {
+    padding: 24px 0 16px;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.stock-identity {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.stock-ticker {
+    font-family: var(--font-mono);
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.stock-name {
+    font-size: 18px;
+    color: var(--text-secondary);
+    font-weight: 300;
+}
+
+.stock-price-block {
+    margin-left: auto;
+    text-align: right;
+}
+
+.stock-price {
+    font-family: var(--font-mono);
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -1px;
+}
+
+.stock-change {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    margin-left: 12px;
+}
+
+.stock-meta {
+    width: 100%;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.price-up { color: var(--gain); }
+.price-down { color: var(--loss); }
+
+@keyframes pulse-green {
+    0% { text-shadow: 0 0 20px rgba(0, 200, 83, 0.6); }
+    100% { text-shadow: none; }
+}
+
+@keyframes pulse-red {
+    0% { text-shadow: 0 0 20px rgba(255, 23, 68, 0.6); }
+    100% { text-shadow: none; }
+}
+
+.price-pulse-up { animation: pulse-green 0.6s ease-out; }
+.price-pulse-down { animation: pulse-red 0.6s ease-out; }
+
+/* === Chart === */
+.chart-section {
+    margin: 8px 0 24px;
+}
+
+.period-buttons {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.period-buttons button {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 6px 12px;
+    transition: all 0.15s;
+}
+
+.period-buttons button:hover {
+    background: var(--bg-panel-hover);
+    color: var(--text-primary);
+}
+
+.period-buttons button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.chart-container {
+    width: 100%;
+    height: 480px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+/* === Panels === */
+.panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+}
+
+.panel h3 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+}
+
+/* === Metrics Grid === */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.metric-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 13px;
+}
+
+.metric-label { color: var(--text-secondary); }
+
+.metric-value {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+/* === Analyst Target Bar === */
+.target-bar-wrap {
+    margin: 12px 0 8px;
+    position: relative;
+}
+
+.target-bar {
+    height: 8px;
+    background: linear-gradient(90deg, var(--loss), var(--hold), var(--gain));
+    border-radius: 4px;
+    position: relative;
+}
+
+.target-marker {
+    position: absolute;
+    top: -6px;
+    width: 2px;
+    height: 20px;
+    transform: translateX(-50%);
+}
+
+.target-marker.current {
+    background: var(--text-primary);
+    width: 3px;
+    top: -8px;
+    height: 24px;
+}
+
+.target-marker.mean { background: var(--accent); }
+
+.target-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+    font-family: var(--font-mono);
+}
+
+.target-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 10px;
+    font-size: 12px;
+}
+
+.target-stat {
+    display: flex;
+    justify-content: space-between;
+}
+
+/* === Recommendation Bar === */
+.rec-bar-wrap { margin: 8px 0 12px; }
+
+.rec-bar {
+    display: flex;
+    height: 24px;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.rec-segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    min-width: 0;
+    transition: flex 0.3s;
+}
+
+.rec-segment.strong-buy { background: var(--strong-buy); }
+.rec-segment.buy { background: var(--buy); }
+.rec-segment.hold { background: var(--hold); }
+.rec-segment.sell { background: var(--sell); }
+.rec-segment.strong-sell { background: var(--strong-sell); }
+
+.rec-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-top: 10px;
+    font-size: 11px;
+}
+
+.rec-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-secondary);
+}
+
+.rec-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+/* === Financial Statements === */
+.financials-section {
+    margin-bottom: 24px;
+}
+
+.financials-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.financials-header h3 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+}
+
+.financials-tabs {
+    display: flex;
+    gap: 16px;
+}
+
+.stmt-tabs, .freq-tabs {
+    display: flex;
+    gap: 2px;
+}
+
+.stmt-tabs button, .freq-tabs button {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 5px 12px;
+    transition: all 0.15s;
+}
+
+.stmt-tabs button:first-child, .freq-tabs button:first-child { border-radius: 4px 0 0 4px; }
+.stmt-tabs button:last-child, .freq-tabs button:last-child { border-radius: 0 4px 4px 0; }
+
+.stmt-tabs button.active, .freq-tabs button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.financials-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.financials-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.financials-table th, .financials-table td {
+    padding: 8px 14px;
+    text-align: right;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+}
+
+.financials-table th {
+    background: var(--bg-panel);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    position: sticky;
+    top: 0;
+}
+
+.financials-table td:first-child,
+.financials-table th:first-child {
+    text-align: left;
+    position: sticky;
+    left: 0;
+    background: var(--bg-primary);
+    z-index: 1;
+    font-weight: 500;
+}
+
+.financials-table th:first-child {
+    background: var(--bg-panel);
+    z-index: 2;
+}
+
+.financials-table tbody tr:hover { background: var(--bg-panel-hover); }
+
+.financials-table td {
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+.financials-table td.negative { color: var(--loss); }
+
+/* === Bottom Grid (News + Upgrades) === */
+.bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+/* === News === */
+.news-list { display: flex; flex-direction: column; gap: 12px; }
+
+.news-item a {
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 13px;
+    line-height: 1.4;
+    display: block;
+    transition: color 0.15s;
+}
+
+.news-item a:hover { color: var(--accent); }
+
+.news-item .news-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* === Upgrades === */
+.upgrades-list { display: flex; flex-direction: column; gap: 6px; }
+
+.upgrade-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 1fr auto;
+    gap: 8px;
+    font-size: 12px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+}
+
+.upgrade-row:last-child { border-bottom: none; }
+.upgrade-date { color: var(--text-muted); font-family: var(--font-mono); }
+.upgrade-firm { color: var(--text-secondary); }
+.upgrade-grade { font-weight: 500; }
+
+/* === SEC Filings === */
+.filings-section { margin-bottom: 24px; }
+.filings-list { display: flex; flex-direction: column; gap: 4px; }
+
+.filing-row {
+    display: grid;
+    grid-template-columns: 80px 100px 1fr;
+    gap: 12px;
+    font-size: 13px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.filing-row:last-child { border-bottom: none; }
+
+.filing-form {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.filing-date {
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+}
+
+.filing-desc { color: var(--text-primary); }
+
+/* === Empty state === */
+.empty-state {
+    color: var(--text-muted);
+    font-size: 13px;
+    text-align: center;
+    padding: 20px;
+}
+
+/* === Responsive === */
+@media (max-width: 900px) {
+    .metrics-grid { grid-template-columns: 1fr 1fr; }
+    .bottom-grid { grid-template-columns: 1fr; }
+    .stock-header { flex-direction: column; }
+    .stock-price-block { margin-left: 0; }
+}
+
+@media (max-width: 600px) {
+    .metrics-grid { grid-template-columns: 1fr; }
+    .dashboard { padding: 0 12px 24px; }
+    .stock-price { font-size: 32px; }
+}

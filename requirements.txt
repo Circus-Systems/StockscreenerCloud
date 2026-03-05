@@ -1,2 +1,3 @@
 edgartools
 yfinance
+flask
