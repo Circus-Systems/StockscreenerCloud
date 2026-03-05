@@ -12,6 +12,7 @@ import argparse
 import sys
 
 from screener.edgar_client import EdgarScreener, SUPPORTED_FORMS
+from screener.yahoo import get_quote
 
 
 def cmd_lookup(screener: EdgarScreener, args):
@@ -66,13 +67,42 @@ def cmd_financials(screener: EdgarScreener, args):
     print(screener.get_financials(args.ticker, statement=args.statement))
 
 
+def _fmt_large(n: float) -> str:
+    abs_n = abs(n)
+    if abs_n >= 1e12:
+        return f"${n/1e12:.2f}T"
+    if abs_n >= 1e9:
+        return f"${n/1e9:.2f}B"
+    if abs_n >= 1e6:
+        return f"${n/1e6:.2f}M"
+    return f"${n:,.0f}"
+
+
+def cmd_quote(args):
+    for ticker in args.tickers:
+        q = get_quote(ticker)
+        sign = "+" if q.change >= 0 else ""
+        print(f"\n{'='*50}")
+        print(f" {q.name} ({q.ticker})")
+        print(f"{'='*50}")
+        print(f"  Price:        ${q.price:.2f}  {sign}{q.change:.2f} ({sign}{q.change_pct:.2f}%)")
+        print(f"  Open:         ${q.open:.2f}")
+        print(f"  Day Range:    ${q.day_low:.2f} - ${q.day_high:.2f}")
+        print(f"  52-Wk Range:  ${q.year_low:.2f} - ${q.year_high:.2f}")
+        print(f"  Volume:       {q.volume:,}")
+        print(f"  Market Cap:   {_fmt_large(q.market_cap)}")
+        print(f"  50-Day Avg:   ${q.fifty_day_avg:.2f}")
+        print(f"  200-Day Avg:  ${q.two_hundred_day_avg:.2f}")
+        print(f"  YTD Change:   {q.year_change*100:+.2f}%")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Download SEC EDGAR filings for stock screening"
     )
     parser.add_argument(
-        "--email", required=True,
-        help="Your email for SEC EDGAR User-Agent (required by SEC)"
+        "--email",
+        help="Your email for SEC EDGAR User-Agent (required for SEC commands)"
     )
 
     subparsers = parser.add_subparsers(dest="command")
@@ -98,6 +128,10 @@ def main():
     dl.add_argument("--max", type=int, default=20, help="Max filings per ticker (default: 20)")
     dl.add_argument("--output", default="filings", help="Output directory (default: filings/)")
 
+    # quote (uses Yahoo Finance, no --email needed)
+    qt = subparsers.add_parser("quote", help="Get real-time stock quote (via Yahoo Finance)")
+    qt.add_argument("tickers", nargs="+", help="Ticker symbol(s)")
+
     # financials
     fin = subparsers.add_parser("financials", help="Show structured financial statements (XBRL)")
     fin.add_argument("ticker", help="Ticker symbol (e.g. AAPL)")
@@ -109,6 +143,14 @@ def main():
     if not args.command:
         parser.print_help()
         sys.exit(1)
+
+    # quote uses Yahoo Finance, no SEC identity needed
+    if args.command == "quote":
+        cmd_quote(args)
+        return
+
+    if not args.email:
+        parser.error("--email is required for SEC EDGAR commands")
 
     screener = EdgarScreener(args.email)
 
