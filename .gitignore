@@ -18,3 +18,7 @@ Thumbs.db
 # Build
 dist/
 build/
+*.egg-info/
+
+# Downloaded filings
+filings/
