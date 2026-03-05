@@ -59,6 +59,13 @@ def cmd_download(screener: EdgarScreener, args):
         print(f"  Total downloaded: {len(downloaded)} filing(s)")
 
 
+STATEMENT_CHOICES = ["income", "balance-sheet", "cash-flow"]
+
+
+def cmd_financials(screener: EdgarScreener, args):
+    print(screener.get_financials(args.ticker, statement=args.statement))
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Download SEC EDGAR filings for stock screening"
@@ -91,6 +98,12 @@ def main():
     dl.add_argument("--max", type=int, default=20, help="Max filings per ticker (default: 20)")
     dl.add_argument("--output", default="filings", help="Output directory (default: filings/)")
 
+    # financials
+    fin = subparsers.add_parser("financials", help="Show structured financial statements (XBRL)")
+    fin.add_argument("ticker", help="Ticker symbol (e.g. AAPL)")
+    fin.add_argument("--statement", choices=STATEMENT_CHOICES,
+                     help="Show only one statement (default: all three)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -105,6 +118,8 @@ def main():
         cmd_list(screener, args)
     elif args.command == "download":
         cmd_download(screener, args)
+    elif args.command == "financials":
+        cmd_financials(screener, args)
 
 
 if __name__ == "__main__":

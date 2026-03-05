@@ -127,3 +127,29 @@ class EdgarScreener:
                 print(f"  Error downloading {filing.accession_number}: {e}")
 
         return downloaded
+
+    def get_financials(self, ticker: str, statement: str = None) -> str:
+        company = Company(ticker)
+        facts = company.get_facts()
+
+        sections = []
+        statements = {
+            "income": facts.income_statement,
+            "balance-sheet": facts.balance_sheet,
+            "cash-flow": facts.cash_flow,
+        }
+
+        if statement:
+            if statement not in statements:
+                raise ValueError(f"Unknown statement: {statement}. Choose from: {', '.join(statements)}")
+            result = statements[statement]()
+            sections.append(str(result))
+        else:
+            for name, func in statements.items():
+                try:
+                    result = func()
+                    sections.append(str(result))
+                except Exception as e:
+                    sections.append(f"[{name}] Error: {e}")
+
+        return "\n\n".join(sections)
