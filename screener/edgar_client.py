@@ -27,6 +27,8 @@ class FilingInfo:
     filing_date: str
     accession_number: str
     description: str
+    homepage_url: str = ""
+    primary_document: str = ""
 
 
 class EdgarScreener:
@@ -74,6 +76,8 @@ class EdgarScreener:
                 filing_date=str(filing.filing_date),
                 accession_number=filing.accession_number,
                 description=getattr(filing, 'primary_doc_description', filing.form),
+                homepage_url=getattr(filing, 'homepage_url', ''),
+                primary_document=getattr(filing, 'primary_document', ''),
             ))
         return results
 

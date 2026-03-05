@@ -36,17 +36,176 @@ def _safe(val):
     return val
 
 
-def _df_to_table(df) -> dict:
-    """Convert a pandas DataFrame (financials-style) to JSON-friendly table."""
+# ---------------------------------------------------------------------------
+# Curated line-item definitions.  Each tuple is (label, row_type) where
+# row_type is one of:
+#   "item"    – regular line item (e.g. R&D, Interest Expense)
+#   "total"   – subtotal / total (e.g. Gross Profit, Net Income)
+#   "metric"  – derived metric (e.g. EPS, EBITDA)
+#
+# Only these rows are shown, in this order.  Duplicates are eliminated and
+# the statements reconcile:
+#   Income:  Revenue – COGS = Gross Profit – OpEx = Operating Income
+#            +/- Non-operating = Pretax Income – Taxes = Net Income
+#   Balance: Assets = Liabilities + Equity
+#   Cash:    Operating + Investing + Financing = Change in Cash
+# ---------------------------------------------------------------------------
+
+INCOME_ITEMS = [
+    ("Total Revenue",                      "total"),
+    ("Cost Of Revenue",                    "item"),
+    ("Gross Profit",                       "total"),
+    ("Research And Development",           "item"),
+    ("Selling General And Administration", "item"),
+    ("Operating Expense",                  "total"),
+    ("Operating Income",                   "total"),
+    ("Interest Income",                    "item"),
+    ("Interest Expense",                   "item"),
+    ("Other Non Operating Income Expenses","item"),
+    ("Pretax Income",                      "total"),
+    ("Tax Provision",                      "item"),
+    ("Net Income",                         "total"),
+    ("Basic EPS",                          "metric"),
+    ("Diluted EPS",                        "metric"),
+    ("Basic Average Shares",              "metric"),
+    ("Diluted Average Shares",            "metric"),
+    ("EBITDA",                             "metric"),
+    ("EBIT",                               "metric"),
+    # SBC-adjusted metrics are computed at runtime and inserted here:
+    # "EBITDA Less SBC", "EBIT Less SBC", "Net Income Less SBC"
+]
+
+BALANCE_SHEET_ITEMS = [
+    # --- Assets ---
+    ("Current Assets",                                  "total"),
+    ("Cash And Cash Equivalents",                       "item"),
+    ("Other Short Term Investments",                    "item"),
+    ("Accounts Receivable",                             "item"),
+    ("Other Receivables",                               "item"),
+    ("Inventory",                                       "item"),
+    ("Other Current Assets",                            "item"),
+    ("Total Non Current Assets",                        "total"),
+    ("Net PPE",                                         "item"),
+    ("Investments And Advances",                        "item"),
+    ("Non Current Deferred Taxes Assets",               "item"),
+    ("Other Non Current Assets",                        "item"),
+    ("Total Assets",                                    "total"),
+    # --- Liabilities ---
+    ("Current Liabilities",                             "total"),
+    ("Accounts Payable",                                "item"),
+    ("Current Debt",                                    "item"),
+    ("Current Deferred Revenue",                        "item"),
+    ("Other Current Liabilities",                       "item"),
+    ("Total Non Current Liabilities Net Minority Interest", "total"),
+    ("Long Term Debt",                                  "item"),
+    ("Long Term Capital Lease Obligation",              "item"),
+    ("Other Non Current Liabilities",                   "item"),
+    ("Total Liabilities Net Minority Interest",         "total"),
+    # --- Equity ---
+    ("Common Stock",                                    "item"),
+    ("Retained Earnings",                               "item"),
+    ("Gains Losses Not Affecting Retained Earnings",    "item"),
+    ("Stockholders Equity",                             "total"),
+    # --- Supplemental ---
+    ("Total Debt",                                      "metric"),
+    ("Net Debt",                                        "metric"),
+    ("Working Capital",                                 "metric"),
+    ("Ordinary Shares Number",                          "metric"),
+]
+
+CASH_FLOW_ITEMS = [
+    # --- Operating ---
+    ("Net Income From Continuing Operations",   "item"),
+    ("Depreciation And Amortization",           "item"),
+    ("Stock Based Compensation",                "item"),
+    ("Deferred Income Tax",                     "item"),
+    ("Other Non Cash Items",                    "item"),
+    ("Change In Working Capital",               "item"),
+    ("Change In Receivables",                   "item"),
+    ("Change In Inventory",                     "item"),
+    ("Change In Account Payable",               "item"),
+    ("Change In Other Working Capital",         "item"),
+    ("Operating Cash Flow",                     "total"),
+    # --- Investing ---
+    ("Capital Expenditure",                     "item"),
+    ("Purchase Of Business",                    "item"),
+    ("Purchase Of Investment",                  "item"),
+    ("Sale Of Investment",                      "item"),
+    ("Net Other Investing Changes",             "item"),
+    ("Investing Cash Flow",                     "total"),
+    # --- Financing ---
+    ("Long Term Debt Issuance",                 "item"),
+    ("Long Term Debt Payments",                 "item"),
+    ("Common Stock Issuance",                   "item"),
+    ("Common Stock Payments",                   "item"),
+    ("Common Stock Dividend Paid",              "item"),
+    ("Net Other Financing Charges",             "item"),
+    ("Financing Cash Flow",                     "total"),
+    # --- Summary ---
+    ("Beginning Cash Position",                 "metric"),
+    ("End Cash Position",                       "metric"),
+    ("Free Cash Flow",                          "metric"),
+]
+
+STMT_ITEMS_MAP = {
+    "income": INCOME_ITEMS,
+    "balance_sheet": BALANCE_SHEET_ITEMS,
+    "cash_flow": CASH_FLOW_ITEMS,
+}
+
+
+def _df_to_table(df, stmt_type=None, sbc_values=None) -> dict:
+    """Convert a pandas DataFrame (financials-style) to JSON-friendly table.
+
+    When *stmt_type* is provided the output is filtered to a curated set of
+    line items and returned in the canonical accounting order so that the
+    statement reconciles correctly.  Each row includes a ``type`` field
+    ("item", "total", or "metric") for frontend styling.
+
+    *sbc_values* is an optional list of SBC amounts per column (from the cash
+    flow statement) used to compute SBC-adjusted metrics on the income
+    statement.
+    """
     if df is None or df.empty:
         return {"columns": [], "rows": []}
     columns = [str(c.date()) if hasattr(c, 'date') else str(c) for c in df.columns]
-    rows = []
+    n_cols = len(columns)
+
+    # Build lookup of all available rows keyed by label
+    all_rows = {}
     for label, row in df.iterrows():
-        rows.append({
-            "label": str(label),
-            "values": [_safe(v) for v in row.tolist()],
-        })
+        all_rows[str(label)] = [_safe(v) for v in row.tolist()]
+
+    whitelist = STMT_ITEMS_MAP.get(stmt_type)
+    if whitelist:
+        # Only include items present in the data, in whitelist order
+        rows = []
+        type_map = {name: rtype for name, rtype in whitelist}
+        for name, rtype in whitelist:
+            if name in all_rows:
+                rows.append({"label": name, "values": all_rows[name], "type": rtype})
+
+        # For income statements, append SBC-adjusted metrics
+        if stmt_type == "income" and sbc_values and len(sbc_values) == n_cols:
+            for base_label, adj_label in [
+                ("EBITDA",      "EBITDA Less SBC"),
+                ("EBIT",        "EBIT Less SBC"),
+                ("Net Income",  "Net Income Less SBC"),
+            ]:
+                if base_label in all_rows:
+                    base = all_rows[base_label]
+                    adj = []
+                    for b, s in zip(base, sbc_values):
+                        if b is not None and s is not None:
+                            adj.append(b - s)
+                        else:
+                            adj.append(None)
+                    rows.append({"label": adj_label, "values": adj, "type": "metric"})
+    else:
+        # No whitelist — return everything in original order
+        rows = [{"label": label, "values": vals, "type": "item"}
+                for label, vals in all_rows.items()]
+
     return {"columns": columns, "rows": rows}
 
 
@@ -217,7 +376,18 @@ class StockDataService:
             return {"columns": [], "rows": []}
 
         df = getattr(t, attr, None)
-        data = _df_to_table(df)
+
+        # For income statements, pull SBC from the matching cash flow to
+        # compute SBC-adjusted metrics.
+        sbc_values = None
+        if stmt_type == "income" and df is not None and not df.empty:
+            cf_attr = "cash_flow" if freq == "annual" else "quarterly_cash_flow"
+            cf_df = getattr(t, cf_attr, None)
+            if cf_df is not None and "Stock Based Compensation" in cf_df.index:
+                sbc_row = cf_df.loc["Stock Based Compensation"]
+                sbc_values = [_safe(v) for v in sbc_row.reindex(df.columns).tolist()]
+
+        data = _df_to_table(df, stmt_type, sbc_values)
         write_cache(ticker, filename, data)
         return data
 
@@ -365,15 +535,25 @@ class StockDataService:
                 start_date=five_years_ago,
                 max_results=100,
             )
-            items = [
-                {
+            items = []
+            for f in filings:
+                # Build direct document URL from homepage_url + primary_document
+                homepage = f.homepage_url or ""
+                primary = f.primary_document or ""
+                if homepage and primary:
+                    base = homepage.replace("-index.html", "").replace("-index.htm", "")
+                    url = f"{base}/{primary}"
+                elif homepage:
+                    url = homepage
+                else:
+                    url = ""
+                items.append({
                     "formType": f.form_type,
                     "filingDate": f.filing_date,
                     "accessionNumber": f.accession_number,
                     "description": f.description,
-                }
-                for f in filings
-            ]
+                    "url": url,
+                })
         except Exception:
             items = []
         write_cache(ticker, "edgar_filings.json", items)

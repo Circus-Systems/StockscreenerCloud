@@ -3,11 +3,18 @@
 function renderMetricList(containerId, items) {
     const el = document.getElementById(containerId);
     el.innerHTML = items.map(([label, value]) =>
-        `<div class="metric-row">
+        `<div class="metric-row" data-metric="${label}">
             <span class="metric-label">${label}</span>
             <span class="metric-value">${value}</span>
         </div>`
     ).join('');
+
+    // Attach click handlers for calculation pop-ups
+    el.querySelectorAll('.metric-row').forEach(row => {
+        row.addEventListener('click', () => {
+            showCalcModal(row.dataset.metric);
+        });
+    });
 }
 
 function renderMetrics(metrics) {
@@ -144,12 +151,13 @@ function renderFinancials(data) {
         data.columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
 
     tbody.innerHTML = data.rows.map(row => {
+        const rowType = row.type || 'item';
         const cells = row.values.map(v => {
             const formatted = fmtLarge(v);
             const cls = v != null && v < 0 ? ' class="negative"' : '';
             return `<td${cls}>${formatted}</td>`;
         }).join('');
-        return `<tr><td>${row.label}</td>${cells}</tr>`;
+        return `<tr class="row-${rowType}"><td>${row.label}</td>${cells}</tr>`;
     }).join('');
 }
 
@@ -184,16 +192,63 @@ function renderUpgrades(items) {
 }
 
 function renderFilings(items) {
-    const el = document.getElementById('filings-list');
+    const filterEl = document.getElementById('filings-filters');
+    const listEl = document.getElementById('filings-list');
     if (!items || items.length === 0) {
-        el.innerHTML = '<div class="empty-state">No SEC filings available</div>';
+        filterEl.innerHTML = '';
+        listEl.innerHTML = '<div class="empty-state">No SEC filings available</div>';
         return;
     }
-    el.innerHTML = items.slice(0, 30).map(f => `
-        <div class="filing-row">
-            <span class="filing-form">${f.formType}</span>
-            <span class="filing-date">${f.filingDate}</span>
-            <span class="filing-desc">${f.description || f.formType}</span>
-        </div>
+
+    // Discover unique form types and build checkboxes (all checked by default)
+    const types = [...new Set(items.map(f => f.formType))].sort();
+    const activeTypes = new Set(types);
+
+    filterEl.innerHTML = types.map(t => `
+        <label class="active">
+            <input type="checkbox" value="${t}" checked> ${t}
+        </label>
     `).join('');
+
+    function renderList() {
+        const visible = items.filter(f => activeTypes.has(f.formType));
+        if (visible.length === 0) {
+            listEl.innerHTML = '<div class="empty-state">No filings match the selected filters</div>';
+            return;
+        }
+        listEl.innerHTML = visible.map(f => {
+            const url = f.url || '';
+            return `
+                <div class="filing-row" ${url ? `data-url="${url}"` : ''} title="${url ? 'Click to open on SEC EDGAR' : ''}">
+                    <span class="filing-form">${f.formType}</span>
+                    <span class="filing-date">${f.filingDate}</span>
+                    <span class="filing-desc">${f.description || f.formType}</span>
+                </div>`;
+        }).join('');
+    }
+
+    // Toggle filter on checkbox click
+    filterEl.addEventListener('change', e => {
+        if (e.target.type !== 'checkbox') return;
+        const type = e.target.value;
+        const label = e.target.closest('label');
+        if (e.target.checked) {
+            activeTypes.add(type);
+            label.classList.add('active');
+        } else {
+            activeTypes.delete(type);
+            label.classList.remove('active');
+        }
+        renderList();
+    });
+
+    // Click filing row to open on SEC EDGAR
+    listEl.addEventListener('click', e => {
+        const row = e.target.closest('.filing-row');
+        if (!row) return;
+        const url = row.dataset.url;
+        if (url) window.open(url, '_blank');
+    });
+
+    renderList();
 }

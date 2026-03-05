@@ -510,6 +510,31 @@ body {
 
 .financials-table td.negative { color: var(--loss); }
 
+/* Row type styling — totals are bold with a subtle top border; metrics are
+   visually separated with dimmer labels to distinguish from operating items */
+.financials-table tr.row-total td {
+    font-weight: 700;
+    border-top: 2px solid var(--border);
+}
+
+.financials-table tr.row-total td:first-child {
+    color: var(--text-primary);
+}
+
+.financials-table tr.row-metric td {
+    font-style: italic;
+    border-top: 1px dashed var(--border);
+}
+
+.financials-table tr.row-metric td:first-child {
+    color: var(--accent);
+}
+
+.financials-table tr.row-item td:first-child {
+    color: var(--text-secondary);
+    padding-left: 28px;
+}
+
 /* === Bottom Grid (News + Upgrades) === */
 .bottom-grid {
     display: grid;
@@ -558,6 +583,47 @@ body {
 
 /* === SEC Filings === */
 .filings-section { margin-bottom: 24px; }
+
+.filings-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.filings-filters label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    transition: all 0.15s;
+    user-select: none;
+}
+
+.filings-filters label:hover {
+    border-color: var(--accent-dim);
+    color: var(--text-primary);
+}
+
+.filings-filters label.active {
+    border-color: var(--accent);
+    background: rgba(33, 150, 243, 0.12);
+    color: var(--accent);
+}
+
+.filings-filters input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+}
+
 .filings-list { display: flex; flex-direction: column; gap: 4px; }
 
 .filing-row {
@@ -567,8 +633,11 @@ body {
     font-size: 13px;
     padding: 6px 0;
     border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
 }
 
+.filing-row:hover { background: var(--bg-panel-hover); }
 .filing-row:last-child { border-bottom: none; }
 
 .filing-form {
@@ -583,6 +652,159 @@ body {
 }
 
 .filing-desc { color: var(--text-primary); }
+
+/* === Clickable Metric Rows === */
+.metric-row {
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    transition: background 0.15s;
+}
+
+.metric-row:hover {
+    background: var(--bg-panel-hover);
+}
+
+/* === Calculation Modal === */
+.calc-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calc-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.calc-dialog {
+    position: relative;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    width: 480px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.calc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg-panel);
+    z-index: 1;
+}
+
+.calc-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.calc-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    transition: color 0.15s;
+}
+
+.calc-close:hover { color: var(--text-primary); }
+
+.calc-body {
+    padding: 20px;
+}
+
+.calc-formula {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--accent);
+    text-align: center;
+    line-height: 1.6;
+}
+
+.calc-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.calc-step {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+}
+
+.calc-step-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.calc-step-source {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.calc-step-value {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: right;
+}
+
+.calc-divider {
+    border: none;
+    border-top: 1px dashed var(--border);
+    margin: 4px 0;
+}
+
+.calc-result {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 12px;
+    border-radius: 6px;
+    background: rgba(33, 150, 243, 0.08);
+    border: 1px solid var(--accent-dim);
+}
+
+.calc-result .calc-step-label {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.calc-result .calc-step-value {
+    color: var(--accent);
+    font-size: 16px;
+}
 
 /* === Empty state === */
 .empty-state {

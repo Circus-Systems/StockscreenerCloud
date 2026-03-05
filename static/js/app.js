@@ -43,6 +43,10 @@ async function loadStock(ticker) {
         document.getElementById('loading-overlay').classList.add('hidden');
         document.getElementById('dashboard').classList.remove('hidden');
 
+        // Store metrics with current price for calculation pop-ups
+        metrics._price = quote.price;
+        setMetricsData(metrics);
+
         // Render primary sections
         renderHeader(quote);
         renderChart(history);

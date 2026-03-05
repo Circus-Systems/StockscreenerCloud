@@ -131,14 +131,28 @@
         <section class="filings-section">
             <div class="panel">
                 <h3>SEC Filings (Last 5 Years)</h3>
+                <div id="filings-filters" class="filings-filters"></div>
                 <div id="filings-list" class="filings-list"></div>
             </div>
         </section>
     </main>
 
+    <!-- Metric Calculation Modal -->
+    <div id="calc-modal" class="calc-modal hidden">
+        <div class="calc-backdrop"></div>
+        <div class="calc-dialog">
+            <div class="calc-header">
+                <h3 id="calc-title"></h3>
+                <button class="calc-close">&times;</button>
+            </div>
+            <div id="calc-body" class="calc-body"></div>
+        </div>
+    </div>
+
     <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
     <script src="/static/js/utils.js"></script>
     <script src="/static/js/chart.js"></script>
+    <script src="/static/js/calcs.js"></script>
     <script src="/static/js/metrics.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
