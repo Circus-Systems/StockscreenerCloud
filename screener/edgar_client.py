@@ -4,9 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+import pandas as pd
 from edgar import Company, set_identity
 
 from screener.storage import FilingStorage
+from screener.xbrl_mapping import normalize_xbrl_dataframe, compute_xbrl_metrics
 
 SUPPORTED_FORMS = ["10-K", "10-Q", "8-K", "DEF 14A", "4", "S-1", "S-3"]
 
@@ -140,7 +142,7 @@ class EdgarScreener:
         statements = {
             "income": facts.income_statement,
             "balance-sheet": facts.balance_sheet,
-            "cash-flow": facts.cash_flow,
+            "cash-flow": facts.cashflow_statement,
         }
 
         if statement:
@@ -157,3 +159,41 @@ class EdgarScreener:
                     sections.append(f"[{name}] Error: {e}")
 
         return "\n\n".join(sections)
+
+    def get_xbrl_statement(
+        self,
+        ticker: str,
+        stmt_type: str = "income",
+        annual: bool = True,
+        periods: int = 5,
+    ) -> Optional[pd.DataFrame]:
+        """Fetch an XBRL financial statement and normalize to yfinance format.
+
+        Returns a pandas DataFrame with display labels as index and period
+        columns, or None if data is unavailable.
+        """
+        company = Company(ticker)
+        facts = company.get_facts()
+
+        stmt_funcs = {
+            "income": facts.income_statement,
+            "balance_sheet": facts.balance_sheet,
+            "cash_flow": facts.cashflow_statement,
+        }
+        func = stmt_funcs.get(stmt_type)
+        if not func:
+            return None
+
+        stmt = func(periods=periods, annual=annual)
+        raw_df = stmt.to_dataframe()
+        return normalize_xbrl_dataframe(raw_df, stmt_type)
+
+    def get_xbrl_metrics(self, ticker: str, current_price: float = None) -> dict:
+        """Compute fundamental metrics from SEC XBRL data.
+
+        Returns a dict with the same keys as StockDataService.get_metrics().
+        Keys not derivable from SEC data are None.
+        """
+        company = Company(ticker)
+        facts = company.get_facts()
+        return compute_xbrl_metrics(facts, current_price)

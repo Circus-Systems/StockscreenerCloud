@@ -129,8 +129,12 @@ function setActivePeriod(period) {
 }
 
 // === Financials ===
+let currentPeriods = 5;
+let lastFinancialsData = null;
+
 async function loadFinancials(ticker) {
-    const data = await fetchJSON(`/api/financials/${ticker}?type=${currentStmtType}&freq=${currentFreq}`);
+    const data = await fetchJSON(`/api/financials/${ticker}?type=${currentStmtType}&freq=${currentFreq}&periods=${currentPeriods}`);
+    lastFinancialsData = data;
     renderFinancials(data);
 }
 
@@ -150,6 +154,30 @@ document.querySelectorAll('.freq-tabs button').forEach(btn => {
         currentFreq = btn.dataset.freq;
         if (currentTicker) loadFinancials(currentTicker);
     });
+});
+
+document.getElementById('financials-periods').addEventListener('change', (e) => {
+    currentPeriods = parseInt(e.target.value, 10);
+    if (currentTicker) loadFinancials(currentTicker);
+});
+
+document.getElementById('financials-csv-btn').addEventListener('click', () => {
+    if (!lastFinancialsData || !lastFinancialsData.columns || lastFinancialsData.columns.length === 0) return;
+    const d = lastFinancialsData;
+    const header = ['Metric', ...d.columns];
+    const lines = [header.join(',')];
+    for (const row of d.rows) {
+        const vals = row.values.map(v => v != null ? v : '');
+        lines.push([`"${row.label}"`, ...vals].join(','));
+    }
+    const csv = lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentTicker}_${currentStmtType}_${currentFreq}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
 });
 
 // === Secondary Panels ===

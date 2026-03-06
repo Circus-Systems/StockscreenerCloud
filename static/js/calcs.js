@@ -18,7 +18,7 @@ const CALC_DEFS = {
         formula: 'Price ÷ EPS (TTM)',
         steps: m => [
             { label: 'Stock Price', value: m._price, formatted: fmtCurrency(m._price), source: 'Yahoo Finance — real-time quote' },
-            { label: 'Earnings Per Share (TTM)', value: m.trailingEps, formatted: fmtCurrency(m.trailingEps), source: 'Yahoo Finance — trailing 12-month EPS' },
+            { label: 'Earnings Per Share (TTM)', value: m.trailingEps, formatted: fmtCurrency(m.trailingEps), source: 'SEC EDGAR — diluted EPS from latest 10-K/10-Q' },
             'divider',
             { label: 'P/E (TTM)', value: m.trailingPE, formatted: fmtRatio(m.trailingPE), source: 'Price ÷ EPS (TTM)', result: true },
         ],
@@ -37,8 +37,8 @@ const CALC_DEFS = {
         steps: m => {
             const netIncome = m.trailingEps && m.sharesOutstanding ? m.trailingEps * m.sharesOutstanding : null;
             return [
-                { label: 'Net Income (TTM)', value: netIncome, formatted: fmtLarge(netIncome), source: 'Yahoo Finance — trailing 12-month net income' },
-                { label: 'Diluted Shares Outstanding', value: m.sharesOutstanding, formatted: fmtLarge(m.sharesOutstanding), source: 'Yahoo Finance — shares outstanding' },
+                { label: 'Net Income (TTM)', value: netIncome, formatted: fmtLarge(netIncome), source: 'SEC EDGAR — net income from latest 10-K/10-Q' },
+                { label: 'Diluted Shares Outstanding', value: m.sharesOutstanding, formatted: fmtLarge(m.sharesOutstanding), source: 'SEC EDGAR — shares outstanding from latest filing' },
                 'divider',
                 { label: 'EPS (TTM)', value: m.trailingEps, formatted: fmtCurrency(m.trailingEps), source: 'Net Income ÷ Shares', result: true },
             ];
@@ -74,8 +74,8 @@ const CALC_DEFS = {
             const netIncome = m.trailingEps && m.sharesOutstanding ? m.trailingEps * m.sharesOutstanding : null;
             const divPaid = m.payoutRatio && netIncome ? m.payoutRatio * netIncome : null;
             return [
-                { label: 'Total Dividends Paid', value: divPaid, formatted: fmtLarge(divPaid), source: 'Yahoo Finance — trailing 12-month dividends' },
-                { label: 'Net Income (TTM)', value: netIncome, formatted: fmtLarge(netIncome), source: 'Yahoo Finance — trailing 12-month net income' },
+                { label: 'Total Dividends Paid', value: divPaid, formatted: fmtLarge(divPaid), source: 'SEC EDGAR — dividends paid from cash flow statement' },
+                { label: 'Net Income (TTM)', value: netIncome, formatted: fmtLarge(netIncome), source: 'SEC EDGAR — net income from latest 10-K/10-Q' },
                 'divider',
                 { label: 'Payout Ratio', value: m.payoutRatio, formatted: m.payoutRatio != null ? fmtPercent(m.payoutRatio) : '—', source: 'Dividends ÷ Net Income', result: true },
             ];
@@ -85,7 +85,7 @@ const CALC_DEFS = {
         formula: 'Share Price × Shares Outstanding',
         steps: m => [
             { label: 'Stock Price', value: m._price, formatted: fmtCurrency(m._price), source: 'Yahoo Finance — real-time quote' },
-            { label: 'Shares Outstanding', value: m.sharesOutstanding, formatted: fmtLarge(m.sharesOutstanding), source: 'Yahoo Finance — total shares outstanding' },
+            { label: 'Shares Outstanding', value: m.sharesOutstanding, formatted: fmtLarge(m.sharesOutstanding), source: 'SEC EDGAR — shares outstanding from latest filing' },
             'divider',
             { label: 'Market Capitalisation', value: m.marketCap, formatted: fmtLarge(m.marketCap), source: 'Price × Shares', result: true },
         ],
@@ -93,9 +93,9 @@ const CALC_DEFS = {
     'EV': {
         formula: 'Market Cap + Total Debt − Cash & Equivalents',
         steps: m => [
-            { label: 'Market Capitalisation', value: m.marketCap, formatted: fmtLarge(m.marketCap), source: 'Yahoo Finance — price × shares outstanding' },
-            { label: 'Total Debt', value: m.totalDebt, formatted: fmtLarge(m.totalDebt), source: 'Yahoo Finance — short-term + long-term debt' },
-            { label: 'Cash & Equivalents', value: m.totalCash, formatted: fmtLarge(m.totalCash), source: 'Yahoo Finance — cash, equivalents & short-term investments' },
+            { label: 'Market Capitalisation', value: m.marketCap, formatted: fmtLarge(m.marketCap), source: 'Yahoo price × SEC shares outstanding' },
+            { label: 'Total Debt', value: m.totalDebt, formatted: fmtLarge(m.totalDebt), source: 'SEC EDGAR — balance sheet (latest 10-K/10-Q)' },
+            { label: 'Cash & Equivalents', value: m.totalCash, formatted: fmtLarge(m.totalCash), source: 'SEC EDGAR — balance sheet (latest 10-K/10-Q)' },
             'divider',
             { label: 'Enterprise Value', value: m.enterpriseValue, formatted: fmtLarge(m.enterpriseValue), source: 'Market Cap + Debt − Cash', result: true },
         ],
@@ -105,8 +105,8 @@ const CALC_DEFS = {
         steps: m => {
             const ebitda = m.enterpriseValue && m.evToEbitda ? m.enterpriseValue / m.evToEbitda : null;
             return [
-                { label: 'Enterprise Value', value: m.enterpriseValue, formatted: fmtLarge(m.enterpriseValue), source: 'Yahoo Finance — Market Cap + Debt − Cash' },
-                { label: 'EBITDA (TTM)', value: ebitda, formatted: fmtLarge(ebitda), source: 'Yahoo Finance — trailing 12-month EBITDA' },
+                { label: 'Enterprise Value', value: m.enterpriseValue, formatted: fmtLarge(m.enterpriseValue), source: 'SEC EDGAR + Yahoo price — Market Cap + Debt − Cash' },
+                { label: 'EBITDA (TTM)', value: ebitda, formatted: fmtLarge(ebitda), source: 'SEC EDGAR — operating income + D&A from latest filing' },
                 'divider',
                 { label: 'EV / EBITDA', value: m.evToEbitda, formatted: fmtRatio(m.evToEbitda), source: 'EV ÷ EBITDA', result: true },
             ];
@@ -115,8 +115,8 @@ const CALC_DEFS = {
     'EV/Revenue': {
         formula: 'Enterprise Value ÷ Revenue (TTM)',
         steps: m => [
-            { label: 'Enterprise Value', value: m.enterpriseValue, formatted: fmtLarge(m.enterpriseValue), source: 'Yahoo Finance — Market Cap + Debt − Cash' },
-            { label: 'Total Revenue (TTM)', value: m.totalRevenue, formatted: fmtLarge(m.totalRevenue), source: 'Yahoo Finance — trailing 12-month revenue' },
+            { label: 'Enterprise Value', value: m.enterpriseValue, formatted: fmtLarge(m.enterpriseValue), source: 'SEC EDGAR + Yahoo price — Market Cap + Debt − Cash' },
+            { label: 'Total Revenue (TTM)', value: m.totalRevenue, formatted: fmtLarge(m.totalRevenue), source: 'SEC EDGAR — revenue from latest 10-K/10-Q' },
             'divider',
             { label: 'EV / Revenue', value: m.evToRevenue, formatted: fmtRatio(m.evToRevenue), source: 'EV ÷ Revenue', result: true },
         ],
@@ -125,7 +125,7 @@ const CALC_DEFS = {
         formula: 'Price ÷ Book Value Per Share',
         steps: m => [
             { label: 'Stock Price', value: m._price, formatted: fmtCurrency(m._price), source: 'Yahoo Finance — real-time quote' },
-            { label: 'Book Value Per Share', value: m.bookValue, formatted: fmtCurrency(m.bookValue), source: 'Yahoo Finance — total equity ÷ shares outstanding' },
+            { label: 'Book Value Per Share', value: m.bookValue, formatted: fmtCurrency(m.bookValue), source: 'SEC EDGAR — stockholders\' equity ÷ shares (latest filing)' },
             'divider',
             { label: 'Price / Book', value: m.priceToBook, formatted: fmtRatio(m.priceToBook), source: 'Price ÷ BVPS', result: true },
         ],
@@ -133,8 +133,8 @@ const CALC_DEFS = {
     'P/S': {
         formula: 'Market Cap ÷ Revenue (TTM)',
         steps: m => [
-            { label: 'Market Capitalisation', value: m.marketCap, formatted: fmtLarge(m.marketCap), source: 'Yahoo Finance — price × shares outstanding' },
-            { label: 'Total Revenue (TTM)', value: m.totalRevenue, formatted: fmtLarge(m.totalRevenue), source: 'Yahoo Finance — trailing 12-month revenue' },
+            { label: 'Market Capitalisation', value: m.marketCap, formatted: fmtLarge(m.marketCap), source: 'Yahoo price × SEC shares outstanding' },
+            { label: 'Total Revenue (TTM)', value: m.totalRevenue, formatted: fmtLarge(m.totalRevenue), source: 'SEC EDGAR — revenue from latest 10-K/10-Q' },
             'divider',
             { label: 'Price / Sales', value: m.priceToSales, formatted: fmtRatio(m.priceToSales), source: 'Market Cap ÷ Revenue', result: true },
         ],
@@ -146,8 +146,8 @@ const CALC_DEFS = {
             const cogs = rev && m.grossMargins ? rev * (1 - m.grossMargins) : null;
             const gp = rev && m.grossMargins ? rev * m.grossMargins : null;
             return [
-                { label: 'Total Revenue (TTM)', value: rev, formatted: fmtLarge(rev), source: 'Yahoo Finance — trailing 12-month revenue' },
-                { label: 'Cost of Revenue', value: cogs, formatted: fmtLarge(cogs), source: 'Yahoo Finance — trailing 12-month COGS' },
+                { label: 'Total Revenue (TTM)', value: rev, formatted: fmtLarge(rev), source: 'SEC EDGAR — revenue from latest 10-K/10-Q' },
+                { label: 'Cost of Revenue', value: cogs, formatted: fmtLarge(cogs), source: 'SEC EDGAR — cost of revenue from latest filing' },
                 { label: 'Gross Profit', value: gp, formatted: fmtLarge(gp), source: 'Revenue − COGS' },
                 'divider',
                 { label: 'Gross Margin', value: m.grossMargins, formatted: fmtPercent(m.grossMargins), source: 'Gross Profit ÷ Revenue × 100', result: true },
@@ -160,8 +160,8 @@ const CALC_DEFS = {
             const rev = m.totalRevenue;
             const opIncome = rev && m.operatingMargins ? rev * m.operatingMargins : null;
             return [
-                { label: 'Operating Income (TTM)', value: opIncome, formatted: fmtLarge(opIncome), source: 'Yahoo Finance — trailing 12-month operating income' },
-                { label: 'Total Revenue (TTM)', value: rev, formatted: fmtLarge(rev), source: 'Yahoo Finance — trailing 12-month revenue' },
+                { label: 'Operating Income (TTM)', value: opIncome, formatted: fmtLarge(opIncome), source: 'SEC EDGAR — operating income from latest 10-K/10-Q' },
+                { label: 'Total Revenue (TTM)', value: rev, formatted: fmtLarge(rev), source: 'SEC EDGAR — revenue from latest 10-K/10-Q' },
                 'divider',
                 { label: 'Operating Margin', value: m.operatingMargins, formatted: fmtPercent(m.operatingMargins), source: 'Op Income ÷ Revenue × 100', result: true },
             ];
@@ -173,8 +173,8 @@ const CALC_DEFS = {
             const rev = m.totalRevenue;
             const netIncome = rev && m.profitMargins ? rev * m.profitMargins : null;
             return [
-                { label: 'Net Income (TTM)', value: netIncome, formatted: fmtLarge(netIncome), source: 'Yahoo Finance — trailing 12-month net income' },
-                { label: 'Total Revenue (TTM)', value: rev, formatted: fmtLarge(rev), source: 'Yahoo Finance — trailing 12-month revenue' },
+                { label: 'Net Income (TTM)', value: netIncome, formatted: fmtLarge(netIncome), source: 'SEC EDGAR — net income from latest 10-K/10-Q' },
+                { label: 'Total Revenue (TTM)', value: rev, formatted: fmtLarge(rev), source: 'SEC EDGAR — revenue from latest 10-K/10-Q' },
                 'divider',
                 { label: 'Net Margin', value: m.profitMargins, formatted: fmtPercent(m.profitMargins), source: 'Net Income ÷ Revenue × 100', result: true },
             ];
@@ -183,13 +183,13 @@ const CALC_DEFS = {
     'Rev Growth': {
         formula: '(Revenue Current − Revenue Prior) ÷ Revenue Prior × 100',
         steps: m => [
-            { label: 'Revenue Growth (QoQ)', value: m.revenueGrowth, formatted: m.revenueGrowth != null ? fmtPercent(m.revenueGrowth) : '—', source: 'Yahoo Finance — most recent quarter vs same quarter prior year', result: true },
+            { label: 'Revenue Growth (YoY)', value: m.revenueGrowth, formatted: m.revenueGrowth != null ? fmtPercent(m.revenueGrowth) : '—', source: 'SEC EDGAR — year-over-year revenue comparison from 10-K filings', result: true },
         ],
     },
     'Earn Growth': {
         formula: '(Earnings Current − Earnings Prior) ÷ Earnings Prior × 100',
         steps: m => [
-            { label: 'Earnings Growth (QoQ)', value: m.earningsGrowth, formatted: m.earningsGrowth != null ? fmtPercent(m.earningsGrowth) : '—', source: 'Yahoo Finance — most recent quarter vs same quarter prior year', result: true },
+            { label: 'Earnings Growth (YoY)', value: m.earningsGrowth, formatted: m.earningsGrowth != null ? fmtPercent(m.earningsGrowth) : '—', source: 'SEC EDGAR — year-over-year net income comparison from 10-K filings', result: true },
         ],
     },
     'D/E': {
@@ -197,8 +197,8 @@ const CALC_DEFS = {
         steps: m => {
             const equity = m.totalDebt && m.debtToEquity ? (m.totalDebt / m.debtToEquity) * 100 : null;
             return [
-                { label: 'Total Debt', value: m.totalDebt, formatted: fmtLarge(m.totalDebt), source: 'Yahoo Finance — short-term + long-term debt' },
-                { label: 'Shareholders\' Equity', value: equity, formatted: fmtLarge(equity), source: 'Yahoo Finance — total stockholders\' equity' },
+                { label: 'Total Debt', value: m.totalDebt, formatted: fmtLarge(m.totalDebt), source: 'SEC EDGAR — balance sheet (latest 10-K/10-Q)' },
+                { label: 'Shareholders\' Equity', value: equity, formatted: fmtLarge(equity), source: 'SEC EDGAR — balance sheet (latest 10-K/10-Q)' },
                 'divider',
                 { label: 'Debt / Equity', value: m.debtToEquity, formatted: fmtRatio(m.debtToEquity), source: 'Total Debt ÷ Equity (×100)', result: true },
             ];
@@ -207,7 +207,7 @@ const CALC_DEFS = {
     'Current Ratio': {
         formula: 'Current Assets ÷ Current Liabilities',
         steps: m => [
-            { label: 'Current Ratio', value: m.currentRatio, formatted: fmtRatio(m.currentRatio), source: 'Yahoo Finance — current assets ÷ current liabilities from latest balance sheet', result: true },
+            { label: 'Current Ratio', value: m.currentRatio, formatted: fmtRatio(m.currentRatio), source: 'SEC EDGAR — current assets ÷ current liabilities from latest balance sheet', result: true },
         ],
     },
     'ROE': {
@@ -216,8 +216,8 @@ const CALC_DEFS = {
             const equity = m.totalDebt && m.debtToEquity ? (m.totalDebt / m.debtToEquity) * 100 : null;
             const netIncome = equity && m.returnOnEquity ? m.returnOnEquity * equity : null;
             return [
-                { label: 'Net Income (TTM)', value: netIncome, formatted: fmtLarge(netIncome), source: 'Yahoo Finance — trailing 12-month net income' },
-                { label: 'Shareholders\' Equity', value: equity, formatted: fmtLarge(equity), source: 'Yahoo Finance — total stockholders\' equity' },
+                { label: 'Net Income (TTM)', value: netIncome, formatted: fmtLarge(netIncome), source: 'SEC EDGAR — net income from latest 10-K/10-Q' },
+                { label: 'Shareholders\' Equity', value: equity, formatted: fmtLarge(equity), source: 'SEC EDGAR — balance sheet (latest 10-K/10-Q)' },
                 'divider',
                 { label: 'Return on Equity', value: m.returnOnEquity, formatted: m.returnOnEquity != null ? fmtPercent(m.returnOnEquity) : '—', source: 'Net Income ÷ Equity × 100', result: true },
             ];
@@ -226,7 +226,7 @@ const CALC_DEFS = {
     'ROA': {
         formula: 'Net Income (TTM) ÷ Total Assets × 100',
         steps: m => [
-            { label: 'Return on Assets', value: m.returnOnAssets, formatted: m.returnOnAssets != null ? fmtPercent(m.returnOnAssets) : '—', source: 'Yahoo Finance — net income (TTM) ÷ total assets from latest balance sheet', result: true },
+            { label: 'Return on Assets', value: m.returnOnAssets, formatted: m.returnOnAssets != null ? fmtPercent(m.returnOnAssets) : '—', source: 'SEC EDGAR — net income ÷ total assets from latest filing', result: true },
         ],
     },
     'FCF': {
@@ -234,8 +234,8 @@ const CALC_DEFS = {
         steps: m => {
             const capex = m.operatingCashflow && m.freeCashflow ? m.operatingCashflow - m.freeCashflow : null;
             return [
-                { label: 'Operating Cash Flow', value: m.operatingCashflow, formatted: fmtLarge(m.operatingCashflow), source: 'Yahoo Finance — trailing 12-month operating cash flow' },
-                { label: 'Capital Expenditures', value: capex, formatted: fmtLarge(capex ? -capex : null), source: 'Yahoo Finance — trailing 12-month capex' },
+                { label: 'Operating Cash Flow', value: m.operatingCashflow, formatted: fmtLarge(m.operatingCashflow), source: 'SEC EDGAR — operating cash flow from latest filing' },
+                { label: 'Capital Expenditures', value: capex, formatted: fmtLarge(capex ? -capex : null), source: 'SEC EDGAR — capex from latest filing' },
                 'divider',
                 { label: 'Free Cash Flow', value: m.freeCashflow, formatted: fmtLarge(m.freeCashflow), source: 'Operating CF − CapEx', result: true },
             ];
@@ -244,7 +244,7 @@ const CALC_DEFS = {
     'Op Cash Flow': {
         formula: 'Net Income + Non-Cash Charges + Changes in Working Capital',
         steps: m => [
-            { label: 'Operating Cash Flow (TTM)', value: m.operatingCashflow, formatted: fmtLarge(m.operatingCashflow), source: 'Yahoo Finance — trailing 12-month operating cash flow (see Cash Flow statement for full breakdown)', result: true },
+            { label: 'Operating Cash Flow (TTM)', value: m.operatingCashflow, formatted: fmtLarge(m.operatingCashflow), source: 'SEC EDGAR — operating cash flow from latest filing (see Cash Flow statement for full breakdown)', result: true },
         ],
     },
 };

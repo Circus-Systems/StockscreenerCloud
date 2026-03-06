@@ -105,6 +105,15 @@
                         <button class="active" data-freq="annual">Annual</button>
                         <button data-freq="quarterly">Quarterly</button>
                     </div>
+                    <div class="period-select">
+                        <label>Periods:</label>
+                        <select id="financials-periods">
+                            <option value="3">3</option>
+                            <option value="5" selected>5</option>
+                            <option value="10">10</option>
+                        </select>
+                    </div>
+                    <button id="financials-csv-btn" class="csv-download-btn" title="Download as CSV">CSV</button>
                 </div>
             </div>
             <div class="financials-table-wrap">
@@ -146,6 +155,33 @@
                 <button class="calc-close">&times;</button>
             </div>
             <div id="calc-body" class="calc-body"></div>
+        </div>
+    </div>
+
+    <!-- Financial Cell Source Modal -->
+    <div id="source-modal" class="calc-modal hidden">
+        <div class="calc-backdrop"></div>
+        <div class="calc-dialog source-dialog">
+            <div class="calc-header">
+                <h3 id="source-title"></h3>
+                <button class="source-close calc-close">&times;</button>
+            </div>
+            <div id="source-body" class="calc-body"></div>
+        </div>
+    </div>
+
+    <!-- Filing Viewer Modal -->
+    <div id="filing-modal" class="filing-modal hidden">
+        <div class="filing-backdrop"></div>
+        <div class="filing-dialog">
+            <div class="filing-header">
+                <h3 id="filing-title"></h3>
+                <button class="filing-close">&times;</button>
+            </div>
+            <iframe id="filing-iframe" class="filing-iframe"></iframe>
+            <div class="filing-footer">
+                <a id="filing-download" href="#" target="_blank" rel="noopener" class="filing-download-btn">Download</a>
+            </div>
         </div>
     </div>
 

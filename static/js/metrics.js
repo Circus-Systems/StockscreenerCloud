@@ -137,9 +137,17 @@ function renderRecommendations(recs) {
     `;
 }
 
+let _financialsColumnFilings = null;
+let _financialsSource = null;
+let _financialsColumns = null;
+
 function renderFinancials(data) {
     const thead = document.getElementById('financials-thead');
     const tbody = document.getElementById('financials-tbody');
+
+    _financialsColumnFilings = data?.columnFilings || null;
+    _financialsSource = data?.source || null;
+    _financialsColumns = data?.columns || null;
 
     if (!data || !data.columns || data.columns.length === 0) {
         thead.innerHTML = '';
@@ -152,14 +160,84 @@ function renderFinancials(data) {
 
     tbody.innerHTML = data.rows.map(row => {
         const rowType = row.type || 'item';
-        const cells = row.values.map(v => {
+        const cells = row.values.map((v, i) => {
             const formatted = fmtLarge(v);
-            const cls = v != null && v < 0 ? ' class="negative"' : '';
-            return `<td${cls}>${formatted}</td>`;
+            const neg = v != null && v < 0 ? ' negative' : '';
+            const clickable = v != null ? ' fin-cell' : '';
+            return `<td class="${neg}${clickable}" data-col="${i}">${formatted}</td>`;
         }).join('');
-        return `<tr class="row-${rowType}"><td>${row.label}</td>${cells}</tr>`;
+        return `<tr class="row-${rowType}" data-label="${row.label}"><td>${row.label}</td>${cells}</tr>`;
     }).join('');
 }
+
+// --- Financial cell click → source popup ---
+
+document.getElementById('financials-tbody').addEventListener('click', e => {
+    const cell = e.target.closest('.fin-cell');
+    if (!cell) return;
+    const colIdx = parseInt(cell.dataset.col, 10);
+    const row = cell.closest('tr');
+    const label = row?.dataset.label || '';
+    const value = cell.textContent.trim();
+    const period = _financialsColumns?.[colIdx] || '';
+    const filing = _financialsColumnFilings?.[colIdx] || null;
+    showSourcePopup(label, value, period, filing, _financialsSource);
+});
+
+function showSourcePopup(label, value, period, filing, source) {
+    const modal = document.getElementById('source-modal');
+    const title = document.getElementById('source-title');
+    const body = document.getElementById('source-body');
+
+    title.textContent = `${label} — ${period}`;
+
+    let html = `<div class="source-value">${value}</div>`;
+
+    if (filing && filing.url) {
+        html += `
+            <div class="source-filing">
+                <div class="source-filing-info">
+                    <span class="source-filing-type">${filing.formType}</span>
+                    filed ${filing.filingDate}
+                </div>
+                <button class="source-view-btn" data-url="${filing.url}"
+                    data-title="${filing.formType} — ${filing.filingDate}">View Filing</button>
+            </div>`;
+    } else if (source === 'yahoo') {
+        html += `<div class="source-filing"><div class="source-filing-info">Source: Yahoo Finance</div></div>`;
+    } else {
+        html += `<div class="source-filing"><div class="source-filing-info">Source: SEC EDGAR XBRL</div></div>`;
+    }
+
+    body.innerHTML = html;
+    modal.classList.remove('hidden');
+}
+
+function hideSourcePopup() {
+    document.getElementById('source-modal').classList.add('hidden');
+}
+
+document.addEventListener('click', e => {
+    if (e.target.classList.contains('calc-backdrop') && e.target.closest('#source-modal')) {
+        hideSourcePopup();
+    }
+    if (e.target.classList.contains('source-close')) {
+        hideSourcePopup();
+    }
+    // "View Filing" button inside source popup
+    if (e.target.classList.contains('source-view-btn')) {
+        const url = e.target.dataset.url;
+        const filingTitle = e.target.dataset.title;
+        hideSourcePopup();
+        showFilingModal(url, filingTitle);
+    }
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !document.getElementById('source-modal').classList.contains('hidden')) {
+        hideSourcePopup();
+    }
+});
 
 function renderNews(items) {
     const el = document.getElementById('news-list');
@@ -210,21 +288,40 @@ function renderFilings(items) {
         </label>
     `).join('');
 
+    const PAGE_SIZE = 15;
+    let currentPage = 0;
+
     function renderList() {
         const visible = items.filter(f => activeTypes.has(f.formType));
         if (visible.length === 0) {
             listEl.innerHTML = '<div class="empty-state">No filings match the selected filters</div>';
             return;
         }
-        listEl.innerHTML = visible.map(f => {
+
+        const totalPages = Math.ceil(visible.length / PAGE_SIZE);
+        currentPage = Math.min(currentPage, totalPages - 1);
+        const start = currentPage * PAGE_SIZE;
+        const pageItems = visible.slice(start, start + PAGE_SIZE);
+
+        let html = pageItems.map(f => {
             const url = f.url || '';
             return `
-                <div class="filing-row" ${url ? `data-url="${url}"` : ''} title="${url ? 'Click to open on SEC EDGAR' : ''}">
+                <div class="filing-row" ${url ? `data-url="${url}"` : ''} title="${url ? 'Click to view filing' : ''}">
                     <span class="filing-form">${f.formType}</span>
                     <span class="filing-date">${f.filingDate}</span>
                     <span class="filing-desc">${f.description || f.formType}</span>
                 </div>`;
         }).join('');
+
+        if (totalPages > 1) {
+            html += `<div class="filings-pagination">
+                <button class="page-btn" data-page="prev" ${currentPage === 0 ? 'disabled' : ''}>&laquo; Prev</button>
+                <span class="page-info">${currentPage + 1} / ${totalPages}</span>
+                <button class="page-btn" data-page="next" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>Next &raquo;</button>
+            </div>`;
+        }
+
+        listEl.innerHTML = html;
     }
 
     // Toggle filter on checkbox click
@@ -239,16 +336,63 @@ function renderFilings(items) {
             activeTypes.delete(type);
             label.classList.remove('active');
         }
+        currentPage = 0;
         renderList();
     });
 
-    // Click filing row to open on SEC EDGAR
+    // Click filing row to open in viewer modal, or pagination button
     listEl.addEventListener('click', e => {
+        const pageBtn = e.target.closest('.page-btn');
+        if (pageBtn) {
+            const dir = pageBtn.dataset.page;
+            if (dir === 'prev' && currentPage > 0) currentPage--;
+            else if (dir === 'next') currentPage++;
+            renderList();
+            listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
         const row = e.target.closest('.filing-row');
         if (!row) return;
         const url = row.dataset.url;
-        if (url) window.open(url, '_blank');
+        if (url) {
+            const desc = row.querySelector('.filing-form').textContent
+                + ' — ' + row.querySelector('.filing-date').textContent;
+            showFilingModal(url, desc);
+        }
     });
 
     renderList();
 }
+
+// --- Filing viewer modal ---
+
+function showFilingModal(url, title) {
+    const modal = document.getElementById('filing-modal');
+    const titleEl = document.getElementById('filing-title');
+    const iframe = document.getElementById('filing-iframe');
+    const downloadBtn = document.getElementById('filing-download');
+
+    titleEl.textContent = title || 'SEC Filing';
+    iframe.src = `/api/filing-proxy?url=${encodeURIComponent(url)}`;
+    downloadBtn.href = url;
+    modal.classList.remove('hidden');
+}
+
+function hideFilingModal() {
+    const modal = document.getElementById('filing-modal');
+    const iframe = document.getElementById('filing-iframe');
+    iframe.src = '';
+    modal.classList.add('hidden');
+}
+
+document.addEventListener('click', e => {
+    if (e.target.classList.contains('filing-backdrop') || e.target.classList.contains('filing-close')) {
+        hideFilingModal();
+    }
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !document.getElementById('filing-modal').classList.contains('hidden')) {
+        hideFilingModal();
+    }
+});

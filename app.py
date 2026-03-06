@@ -2,7 +2,8 @@
 """Stock Screener Dashboard — Flask web application."""
 
 import os
-from flask import Flask, render_template, jsonify, request
+import requests as http_requests
+from flask import Flask, render_template, jsonify, request, Response
 from screener.data_service import StockDataService
 
 app = Flask(__name__)
@@ -42,7 +43,8 @@ def api_history(ticker):
 def api_financials(ticker):
     stmt_type = request.args.get("type", "income")
     freq = request.args.get("freq", "annual")
-    return jsonify(service.get_financials(ticker, stmt_type, freq))
+    periods = int(request.args.get("periods", "5"))
+    return jsonify(service.get_financials(ticker, stmt_type, freq, periods))
 
 
 @app.route("/api/recommendations/<ticker>")
@@ -79,6 +81,28 @@ def api_filings(ticker):
 def api_fetch(ticker):
     results = service.fetch_all(ticker)
     return jsonify(results)
+
+
+@app.route("/api/filing-proxy")
+def api_filing_proxy():
+    """Proxy SEC EDGAR documents to bypass X-Frame-Options."""
+    url = request.args.get("url", "")
+    if not url or not url.startswith("https://www.sec.gov/"):
+        return "Invalid URL", 400
+    try:
+        resp = http_requests.get(url, headers={
+            "User-Agent": "StockScreener andrew@sailingcircus.com",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        }, timeout=30)
+        # Inject <base> tag so relative links resolve against SEC
+        content = resp.text
+        base_url = url.rsplit("/", 1)[0] + "/"
+        content = content.replace("<head>", f'<head><base href="{base_url}">', 1)
+        if "<head>" not in content.lower():
+            content = content.replace("<HEAD>", f'<HEAD><base href="{base_url}">', 1)
+        return Response(content, content_type=resp.headers.get("Content-Type", "text/html"))
+    except Exception as e:
+        return f"Error fetching filing: {e}", 502
 
 
 if __name__ == "__main__":

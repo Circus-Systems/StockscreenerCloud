@@ -1,6 +1,7 @@
 """Orchestrates all data fetching and caching for stock data."""
 
 import math
+import re
 from datetime import datetime, timedelta
 
 import yfinance as yf
@@ -34,6 +35,76 @@ def _safe(val):
     if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
         return None
     return val
+
+
+def _match_columns_to_filings(columns: list[str], filings: list[dict], freq: str) -> list:
+    """Map each column label (e.g. 'FY 2025', 'Q1 2026') to its source SEC filing.
+
+    Returns a list the same length as *columns* with either a filing dict or None.
+    """
+    if not filings:
+        return [None] * len(columns)
+
+    # Build lookup: (formType) -> list of filings sorted by date desc
+    annual_filings = [f for f in filings if f.get("formType") in ("10-K", "20-F")]
+    quarterly_filings = [f for f in filings if f.get("formType") in ("10-Q", "6-K")]
+
+    result = []
+    for col in columns:
+        filing = None
+        # Parse column label
+        fy_match = re.match(r"FY\s*(\d{4})", col)
+        q_match = re.match(r"Q([1-4])\s*(\d{4})", col)
+
+        if freq == "annual" and fy_match:
+            year = int(fy_match.group(1))
+            # 10-K is filed after fiscal year end; look for filing date
+            # within ~6 months after the fiscal year (covers all fiscal calendars)
+            for f in annual_filings:
+                try:
+                    fd = datetime.strptime(f["filingDate"], "%Y-%m-%d")
+                    # Filing date should be in the same year or up to 6 months after
+                    if fd.year == year or (fd.year == year + 1 and fd.month <= 6):
+                        filing = f
+                        break
+                except (ValueError, KeyError):
+                    continue
+        elif q_match:
+            q_num = int(q_match.group(1))
+            year = int(q_match.group(2))
+            # 10-Q filed within ~3 months after quarter end
+            for f in quarterly_filings:
+                try:
+                    fd = datetime.strptime(f["filingDate"], "%Y-%m-%d")
+                    # Map filing date to approximate quarter
+                    f_q = (fd.month - 1) // 3 + 1
+                    f_year = fd.year
+                    # Check if this filing covers the target quarter
+                    # Q filing lags by ~1-2 months, so Q1 report files in Q2
+                    if f_year == year and f_q == q_num:
+                        filing = f
+                        break
+                    if f_year == year and f_q == q_num + 1:
+                        filing = f
+                        break
+                    # Q4 of year X files in Q1 of year X+1
+                    if q_num == 4 and f_year == year + 1 and f_q == 1:
+                        filing = f
+                        break
+                except (ValueError, KeyError):
+                    continue
+
+        if filing:
+            result.append({
+                "formType": filing["formType"],
+                "filingDate": filing["filingDate"],
+                "url": filing.get("url", ""),
+                "accessionNumber": filing.get("accessionNumber", ""),
+            })
+        else:
+            result.append(None)
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -288,45 +359,75 @@ class StockDataService:
 
     def get_metrics(self, ticker: str) -> dict:
         info = self.get_info(ticker)
-        return {
-            "trailingPE": _safe(info.get("trailingPE")),
+
+        # --- Try SEC EDGAR XBRL first for fundamental metrics ---
+        sec_metrics = None
+        if self.edgar:
+            try:
+                # Get current price for hybrid valuation ratios
+                t = yf.Ticker(ticker)
+                current_price = t.fast_info.last_price
+                sec_metrics = self.edgar.get_xbrl_metrics(ticker, current_price)
+            except Exception:
+                sec_metrics = None
+
+        # Yahoo-only metrics (never from SEC)
+        yahoo_only = {
             "forwardPE": _safe(info.get("forwardPE")),
-            "priceToBook": _safe(info.get("priceToBook")),
-            "priceToSales": _safe(info.get("priceToSalesTrailing12Months")),
-            "evToRevenue": _safe(info.get("enterpriseToRevenue")),
-            "evToEbitda": _safe(info.get("enterpriseToEbitda")),
+            "forwardEps": _safe(info.get("forwardEps")),
             "dividendYield": _safe(info.get("dividendYield")),
             "beta": _safe(info.get("beta")),
-            "marketCap": _safe(info.get("marketCap")),
-            "enterpriseValue": _safe(info.get("enterpriseValue")),
-            "trailingEps": _safe(info.get("trailingEps")),
-            "forwardEps": _safe(info.get("forwardEps")),
-            "bookValue": _safe(info.get("bookValue")),
-            "returnOnEquity": _safe(info.get("returnOnEquity")),
-            "returnOnAssets": _safe(info.get("returnOnAssets")),
-            "debtToEquity": _safe(info.get("debtToEquity")),
-            "currentRatio": _safe(info.get("currentRatio")),
-            "quickRatio": _safe(info.get("quickRatio")),
-            "grossMargins": _safe(info.get("grossMargins")),
-            "operatingMargins": _safe(info.get("operatingMargins")),
-            "profitMargins": _safe(info.get("profitMargins")),
-            "revenueGrowth": _safe(info.get("revenueGrowth")),
-            "earningsGrowth": _safe(info.get("earningsGrowth")),
-            "earningsQuarterlyGrowth": _safe(info.get("earningsQuarterlyGrowth")),
-            "freeCashflow": _safe(info.get("freeCashflow")),
-            "operatingCashflow": _safe(info.get("operatingCashflow")),
-            "totalRevenue": _safe(info.get("totalRevenue")),
-            "totalDebt": _safe(info.get("totalDebt")),
-            "totalCash": _safe(info.get("totalCash")),
-            "sharesOutstanding": _safe(info.get("sharesOutstanding")),
             "floatShares": _safe(info.get("floatShares")),
             "heldPercentInsiders": _safe(info.get("heldPercentInsiders")),
             "heldPercentInstitutions": _safe(info.get("heldPercentInstitutions")),
             "shortRatio": _safe(info.get("shortRatio")),
             "shortPercentOfFloat": _safe(info.get("shortPercentOfFloat")),
-            "payoutRatio": _safe(info.get("payoutRatio")),
+            "earningsQuarterlyGrowth": _safe(info.get("earningsQuarterlyGrowth")),
+            "quickRatio": _safe(info.get("quickRatio")),
             "fiftyTwoWeekChange": _safe(info.get("52WeekChange")),
         }
+
+        # Yahoo fallback values for all SEC-sourced metrics
+        yahoo_fallback = {
+            "trailingPE": _safe(info.get("trailingPE")),
+            "priceToBook": _safe(info.get("priceToBook")),
+            "priceToSales": _safe(info.get("priceToSalesTrailing12Months")),
+            "evToRevenue": _safe(info.get("enterpriseToRevenue")),
+            "evToEbitda": _safe(info.get("enterpriseToEbitda")),
+            "marketCap": _safe(info.get("marketCap")),
+            "enterpriseValue": _safe(info.get("enterpriseValue")),
+            "trailingEps": _safe(info.get("trailingEps")),
+            "bookValue": _safe(info.get("bookValue")),
+            "returnOnEquity": _safe(info.get("returnOnEquity")),
+            "returnOnAssets": _safe(info.get("returnOnAssets")),
+            "grossMargins": _safe(info.get("grossMargins")),
+            "operatingMargins": _safe(info.get("operatingMargins")),
+            "profitMargins": _safe(info.get("profitMargins")),
+            "debtToEquity": _safe(info.get("debtToEquity")),
+            "currentRatio": _safe(info.get("currentRatio")),
+            "totalRevenue": _safe(info.get("totalRevenue")),
+            "totalDebt": _safe(info.get("totalDebt")),
+            "totalCash": _safe(info.get("totalCash")),
+            "sharesOutstanding": _safe(info.get("sharesOutstanding")),
+            "freeCashflow": _safe(info.get("freeCashflow")),
+            "operatingCashflow": _safe(info.get("operatingCashflow")),
+            "revenueGrowth": _safe(info.get("revenueGrowth")),
+            "earningsGrowth": _safe(info.get("earningsGrowth")),
+            "payoutRatio": _safe(info.get("payoutRatio")),
+        }
+
+        # Merge: SEC first, Yahoo fallback for any None values
+        result = dict(yahoo_only)
+        if sec_metrics:
+            for key, sec_val in sec_metrics.items():
+                if key in yahoo_only:
+                    continue  # Already set from Yahoo-only
+                result[key] = sec_val if sec_val is not None else yahoo_fallback.get(key)
+        else:
+            # No SEC data — use Yahoo for everything
+            result.update(yahoo_fallback)
+
+        return result
 
     def get_history(self, ticker: str, period: str = "1y") -> list[dict]:
         interval = PERIOD_INTERVAL_MAP.get(period, "1d")
@@ -356,12 +457,86 @@ class StockDataService:
         write_cache(ticker, filename, records)
         return records
 
-    def get_financials(self, ticker: str, stmt_type: str = "income", freq: str = "annual") -> dict:
-        filename = f"{'financials' if stmt_type == 'income' else stmt_type}_{freq}.json"
+    def get_financials(self, ticker: str, stmt_type: str = "income", freq: str = "annual", periods: int = 5) -> dict:
+        filename = f"{'financials' if stmt_type == 'income' else stmt_type}_{freq}_{periods}.json"
         cached = read_cache(ticker, filename, WEEK)
         if cached:
             return cached
 
+        # --- Try SEC EDGAR XBRL first ---
+        sec_df = None
+        if self.edgar:
+            try:
+                sec_df = self.edgar.get_xbrl_statement(
+                    ticker,
+                    stmt_type=stmt_type,
+                    annual=(freq == "annual"),
+                    periods=periods,
+                )
+            except Exception:
+                sec_df = None
+
+        if sec_df is not None and not sec_df.empty:
+            # For income statements, pull SBC and D&A from SEC cash flow
+            sbc_values = None
+            if stmt_type == "income":
+                try:
+                    cf_df = self.edgar.get_xbrl_statement(
+                        ticker,
+                        stmt_type="cash_flow",
+                        annual=(freq == "annual"),
+                        periods=periods,
+                    )
+                    if cf_df is not None:
+                        # Align cash flow columns to income statement columns
+                        common_cols = [c for c in sec_df.columns if c in cf_df.columns]
+
+                        if "Stock Based Compensation" in cf_df.index and common_cols:
+                            sbc_values = [_safe(cf_df.at["Stock Based Compensation", c]) for c in common_cols]
+                            # Pad if income statement has more columns
+                            while len(sbc_values) < len(sec_df.columns):
+                                sbc_values.append(None)
+
+                        # Compute EBITDA = Operating Income + D&A
+                        if ("Depreciation And Amortization" in cf_df.index
+                                and "Operating Income" in sec_df.index
+                                and "EBITDA" not in sec_df.index
+                                and common_cols):
+                            ebitda_vals = []
+                            for col in sec_df.columns:
+                                if col in cf_df.columns:
+                                    oi = _safe(sec_df.at["Operating Income", col])
+                                    da = _safe(cf_df.at["Depreciation And Amortization", col])
+                                    if oi is not None and da is not None:
+                                        ebitda_vals.append(oi + da)
+                                    else:
+                                        ebitda_vals.append(None)
+                                else:
+                                    ebitda_vals.append(None)
+                            sec_df.loc["EBITDA"] = ebitda_vals
+                except Exception:
+                    sbc_values = None
+
+            data = _df_to_table(sec_df, stmt_type, sbc_values)
+            data["source"] = "sec"
+            # Map columns to source SEC filings (fetch 10-K/10-Q specifically)
+            try:
+                forms = ["10-K", "20-F"] if freq == "annual" else ["10-Q", "6-K"]
+                raw = self.edgar.list_filings(
+                    ticker, forms=forms,
+                    start_date=(datetime.now() - timedelta(days=15 * 365)).strftime("%Y-%m-%d"),
+                    max_results=20,
+                )
+                stmt_filings = [self._filing_to_dict(f) for f in raw]
+                data["columnFilings"] = _match_columns_to_filings(
+                    data.get("columns", []), stmt_filings, freq
+                )
+            except Exception:
+                data["columnFilings"] = None
+            write_cache(ticker, filename, data)
+            return data
+
+        # --- Fall back to Yahoo Finance ---
         t = yf.Ticker(ticker)
         attr_map = {
             ("income", "annual"): "financials",
@@ -388,6 +563,8 @@ class StockDataService:
                 sbc_values = [_safe(v) for v in sbc_row.reindex(df.columns).tolist()]
 
         data = _df_to_table(df, stmt_type, sbc_values)
+        data["source"] = "yahoo"
+        data["columnFilings"] = None
         write_cache(ticker, filename, data)
         return data
 
@@ -519,6 +696,27 @@ class StockDataService:
         write_cache(ticker, "holders.json", data)
         return data
 
+    @staticmethod
+    def _filing_to_dict(f) -> dict:
+        """Convert a FilingInfo to a JSON-serialisable dict with correct SEC URL."""
+        homepage_parts = (f.homepage_url or "").split("/")
+        cik = homepage_parts[6] if len(homepage_parts) > 6 else ""
+        acc_no_hyphens = f.accession_number.replace("-", "")
+        primary = f.primary_document or ""
+        if cik and acc_no_hyphens and primary:
+            url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_no_hyphens}/{primary}"
+        elif f.homepage_url:
+            url = f.homepage_url
+        else:
+            url = ""
+        return {
+            "formType": f.form_type,
+            "filingDate": f.filing_date,
+            "accessionNumber": f.accession_number,
+            "description": f.description,
+            "url": url,
+        }
+
     def get_filings(self, ticker: str) -> list[dict]:
         cached = read_cache(ticker, "edgar_filings.json", WEEK)
         if cached:
@@ -535,25 +733,7 @@ class StockDataService:
                 start_date=five_years_ago,
                 max_results=100,
             )
-            items = []
-            for f in filings:
-                # Build direct document URL from homepage_url + primary_document
-                homepage = f.homepage_url or ""
-                primary = f.primary_document or ""
-                if homepage and primary:
-                    base = homepage.replace("-index.html", "").replace("-index.htm", "")
-                    url = f"{base}/{primary}"
-                elif homepage:
-                    url = homepage
-                else:
-                    url = ""
-                items.append({
-                    "formType": f.form_type,
-                    "filingDate": f.filing_date,
-                    "accessionNumber": f.accession_number,
-                    "description": f.description,
-                    "url": url,
-                })
+            items = [self._filing_to_dict(f) for f in filings]
         except Exception:
             items = []
         write_cache(ticker, "edgar_filings.json", items)
