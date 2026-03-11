@@ -9,6 +9,16 @@ from screener.data_service import StockDataService
 app = Flask(__name__)
 service = StockDataService(edgar_email=os.environ.get("EDGAR_EMAIL", "andrew@sailingcircus.com"))
 
+# Register API v1 blueprint
+from screener.api_v1 import api_v1
+app.register_blueprint(api_v1)
+
+# Initialize database if DATABASE_URL is set
+if os.environ.get("DATABASE_URL"):
+    from screener.db import init_db
+    with app.app_context():
+        init_db()
+
 
 @app.route("/")
 def index():
