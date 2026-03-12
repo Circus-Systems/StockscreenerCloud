@@ -1,4 +1,4 @@
-"""API v1 Blueprint — Portfolio, Watchlist, and future iOS-ready endpoints."""
+"""API v1 Blueprint — Auth, Portfolio, Watchlist, User Management."""
 
 import os
 from datetime import datetime, timezone
@@ -6,9 +6,9 @@ from decimal import Decimal, InvalidOperation
 from functools import wraps
 
 import jwt
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, g, jsonify, request
 
-from screener import models
+from screener import auth, models
 from screener.data_service import StockDataService
 
 api_v1 = Blueprint("api_v1", __name__, url_prefix="/api/v1")
@@ -34,16 +34,18 @@ def _get_service() -> StockDataService:
 
 
 # ---------------------------------------------------------------------------
-# JWT Auth (optional — skipped if JWT_SECRET not set)
+# JWT Auth
 # ---------------------------------------------------------------------------
 
 def require_auth(f):
-    """Decorator: require valid JWT bearer token if JWT_SECRET is configured."""
+    """Decorator: require valid JWT bearer token. Sets g.user_id and g.user_role."""
     @wraps(f)
     def decorated(*args, **kwargs):
         secret = os.environ.get("JWT_SECRET")
         if not secret:
-            # Auth disabled — allow all requests (local dev / web dashboard)
+            # Auth disabled — allow all requests (local dev without JWT_SECRET)
+            g.user_id = None
+            g.user_role = "admin"
             return f(*args, **kwargs)
 
         auth_header = request.headers.get("Authorization", "")
@@ -52,46 +54,164 @@ def require_auth(f):
 
         token = auth_header[7:]
         try:
-            jwt.decode(token, secret, algorithms=["HS256"])
+            payload = jwt.decode(token, secret, algorithms=["HS256"])
         except jwt.ExpiredSignatureError:
             return jsonify({"error": "Token expired"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"error": "Invalid token"}), 401
 
+        g.user_id = payload.get("user_id")
+        g.user_role = payload.get("role", "readonly")
         return f(*args, **kwargs)
     return decorated
 
 
-@api_v1.route("/auth/token", methods=["POST"])
-def auth_token():
-    """Generate JWT token. Body: { "secret": "..." }"""
+def require_admin(f):
+    """Decorator: require admin role (must be used after require_auth)."""
+    @wraps(f)
+    @require_auth
+    def decorated(*args, **kwargs):
+        if g.user_role != "admin":
+            return jsonify({"error": "Admin access required"}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _issue_token(user: dict) -> str:
+    """Generate a JWT token for a user."""
     secret = os.environ.get("JWT_SECRET")
     if not secret:
-        return jsonify({"error": "JWT_SECRET not configured"}), 500
-
-    data = request.get_json(silent=True) or {}
-    if data.get("secret") != secret:
-        return jsonify({"error": "Invalid secret"}), 403
-
-    token = jwt.encode(
-        {"iat": datetime.now(timezone.utc), "exp": datetime.now(timezone.utc).replace(
-            year=datetime.now(timezone.utc).year + 1
-        )},
+        raise RuntimeError("JWT_SECRET not configured")
+    return jwt.encode(
+        {
+            "user_id": user["id"],
+            "email": user["email"],
+            "role": user["role"],
+            "iat": datetime.now(timezone.utc),
+            "exp": datetime.now(timezone.utc).replace(
+                year=datetime.now(timezone.utc).year + 1
+            ),
+        },
         secret,
         algorithm="HS256",
     )
-    return jsonify({"token": token})
 
 
 # ---------------------------------------------------------------------------
-# Portfolio
+# Auth endpoints
+# ---------------------------------------------------------------------------
+
+@api_v1.route("/auth/login", methods=["POST"])
+def auth_login():
+    """Login with email/password. Returns JWT token + user info."""
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip()
+    password = data.get("password", "")
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    user = auth.authenticate(email, password)
+    if not user:
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    token = _issue_token(user)
+    return jsonify({
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "role": user["role"],
+            "name": user["name"],
+        },
+    })
+
+
+@api_v1.route("/auth/me", methods=["GET"])
+@require_auth
+def auth_me():
+    """Get current user info."""
+    if g.user_id is None:
+        return jsonify({"id": None, "email": None, "role": "admin", "name": "Local Dev"})
+    user = auth.get_user(g.user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify({
+        "id": user["id"],
+        "email": user["email"],
+        "role": user["role"],
+        "name": user["name"],
+    })
+
+
+# ---------------------------------------------------------------------------
+# User Management (admin only)
+# ---------------------------------------------------------------------------
+
+@api_v1.route("/users", methods=["GET"])
+@require_admin
+def list_users():
+    """List all users."""
+    return jsonify(auth.get_all_users())
+
+
+@api_v1.route("/users", methods=["POST"])
+@require_admin
+def create_user():
+    """Create a new user. Body: { email, password, role?, name? }"""
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip()
+    password = data.get("password", "")
+
+    if not email or not password:
+        return jsonify({"error": "email and password are required"}), 400
+
+    role = data.get("role", "readonly")
+    if role not in ("admin", "readonly"):
+        return jsonify({"error": "role must be 'admin' or 'readonly'"}), 400
+
+    try:
+        user = auth.create_user(email, password, role, data.get("name"))
+    except Exception as e:
+        if "unique" in str(e).lower():
+            return jsonify({"error": "Email already exists"}), 409
+        raise
+
+    return jsonify(user), 201
+
+
+@api_v1.route("/users/<int:user_id>", methods=["PUT"])
+@require_admin
+def update_user(user_id):
+    """Update a user. Body: { email?, password?, role?, name? }"""
+    data = request.get_json(silent=True) or {}
+    user = auth.update_user(user_id, **data)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify(user)
+
+
+@api_v1.route("/users/<int:user_id>", methods=["DELETE"])
+@require_admin
+def delete_user(user_id):
+    """Delete a user."""
+    # Prevent self-deletion
+    if g.user_id == user_id:
+        return jsonify({"error": "Cannot delete your own account"}), 400
+    if auth.delete_user(user_id):
+        return jsonify({"message": "User deleted"})
+    return jsonify({"error": "User not found"}), 404
+
+
+# ---------------------------------------------------------------------------
+# Portfolio (scoped to authenticated user)
 # ---------------------------------------------------------------------------
 
 @api_v1.route("/portfolio", methods=["GET"])
 @require_auth
 def list_portfolio():
     """List all positions with current prices and P&L."""
-    positions = models.get_all_positions()
+    positions = models.get_all_positions(user_id=g.user_id)
     service = _get_service()
 
     # Group by stock for efficient quote fetching
@@ -189,6 +309,7 @@ def add_portfolio_position():
         shares=shares,
         purchase_price=purchase_price,
         purchase_date=purchase_date,
+        user_id=g.user_id,
         currency=data.get("currency", "USD"),
         notes=data.get("notes"),
     )
@@ -207,7 +328,7 @@ def add_portfolio_position():
 def update_portfolio_position(position_id):
     """Update a position. Body: { shares?, purchasePrice?, purchaseDate?, currency?, notes? }"""
     data = request.get_json(silent=True) or {}
-    existing = models.get_position(position_id)
+    existing = models.get_position(position_id, user_id=g.user_id)
     if not existing:
         return jsonify({"error": "Position not found"}), 404
 
@@ -223,7 +344,7 @@ def update_portfolio_position(position_id):
     if "notes" in data:
         updates["notes"] = data["notes"]
 
-    position = models.update_position(position_id, **updates)
+    position = models.update_position(position_id, user_id=g.user_id, **updates)
     return jsonify({"id": position["id"], "message": "Position updated"})
 
 
@@ -231,7 +352,7 @@ def update_portfolio_position(position_id):
 @require_auth
 def delete_portfolio_position(position_id):
     """Delete a position."""
-    if models.delete_position(position_id):
+    if models.delete_position(position_id, user_id=g.user_id):
         return jsonify({"message": "Position deleted"})
     return jsonify({"error": "Position not found"}), 404
 
@@ -240,7 +361,7 @@ def delete_portfolio_position(position_id):
 @require_auth
 def portfolio_summary():
     """Aggregate portfolio: total value, cost basis, P&L."""
-    positions = models.get_all_positions()
+    positions = models.get_all_positions(user_id=g.user_id)
     service = _get_service()
 
     quotes = {}
@@ -277,14 +398,14 @@ def portfolio_summary():
 
 
 # ---------------------------------------------------------------------------
-# Watchlist
+# Watchlist (scoped to authenticated user)
 # ---------------------------------------------------------------------------
 
 @api_v1.route("/watchlist", methods=["GET"])
 @require_auth
 def list_watchlist():
     """List watchlist with current prices."""
-    items = models.get_watchlist()
+    items = models.get_watchlist(user_id=g.user_id)
     service = _get_service()
 
     results = []
@@ -338,7 +459,7 @@ def add_to_watchlist():
         except Exception:
             pass
 
-    entry = models.add_to_watchlist(stock["id"], data.get("notes"))
+    entry = models.add_to_watchlist(stock["id"], data.get("notes"), user_id=g.user_id)
     return jsonify({
         "id": entry["id"],
         "stockId": stock["id"],
@@ -352,23 +473,23 @@ def add_to_watchlist():
 @require_auth
 def remove_from_watchlist(watchlist_id):
     """Remove from watchlist."""
-    if models.remove_from_watchlist(watchlist_id):
+    if models.remove_from_watchlist(watchlist_id, user_id=g.user_id):
         return jsonify({"message": "Removed from watchlist"})
     return jsonify({"error": "Watchlist entry not found"}), 404
 
 
 # ---------------------------------------------------------------------------
-# Settings
+# Settings (admin only)
 # ---------------------------------------------------------------------------
 
 @api_v1.route("/settings", methods=["GET"])
-@require_auth
+@require_admin
 def get_settings():
     return jsonify(models.get_all_settings())
 
 
 @api_v1.route("/settings", methods=["PUT"])
-@require_auth
+@require_admin
 def update_settings():
     data = request.get_json(silent=True) or {}
     for key, value in data.items():

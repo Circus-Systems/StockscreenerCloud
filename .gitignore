@@ -25,3 +25,6 @@ filings/
 
 # Cached stock data
 data/
+
+# Claude Code local config (contains local DB creds)
+.claude/launch.json
