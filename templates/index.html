@@ -8,7 +8,7 @@
 </head>
 <body>
     <!-- Login Screen -->
-    <div id="login-screen" class="login-screen hidden">
+    <div id="login-screen" class="login-screen">
         <div class="login-card">
             <h1>Stock Screener</h1>
             <p class="login-subtitle">Sign in to continue</p>
@@ -22,7 +22,7 @@
     </div>
 
     <!-- Header / Search -->
-    <header class="top-bar">
+    <header class="top-bar hidden" id="top-bar">
         <form id="search-form" class="search-form" autocomplete="off">
             <input type="text" id="ticker-input" placeholder="Enter ticker (e.g. AAPL)" spellcheck="false">
             <button type="submit">Search</button>
@@ -35,7 +35,7 @@
     </header>
 
     <!-- Welcome screen (shown before ticker entry) -->
-    <div id="welcome" class="welcome">
+    <div id="welcome" class="welcome hidden">
         <div class="welcome-inner">
             <h1>Stock Screener</h1>
             <p>Enter a ticker symbol above to view real-time quotes, charts, financials, and SEC filings.</p>

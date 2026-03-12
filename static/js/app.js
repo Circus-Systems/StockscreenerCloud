@@ -14,6 +14,7 @@ function setUser(user) { localStorage.setItem('ss_user', JSON.stringify(user)); 
 
 function showLogin() {
     document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('top-bar').classList.add('hidden');
     document.getElementById('welcome').classList.add('hidden');
     document.getElementById('dashboard').classList.add('hidden');
     document.getElementById('logout-btn').classList.add('hidden');
@@ -23,6 +24,7 @@ function showLogin() {
 
 function hideLogin() {
     document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('top-bar').classList.remove('hidden');
     const user = getUser();
     if (user) {
         document.getElementById('user-info').textContent = user.name || user.email;
